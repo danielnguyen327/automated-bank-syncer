@@ -1,5 +1,6 @@
 package io.github.danielnguyen327.ledgersync.bank;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -19,6 +20,12 @@ public interface PlaidGateway {
     /** Tells Plaid to forget this bank connection. Its access token stops working. */
     void removeItem(String accessToken);
 
+    /**
+     * One page of transaction changes since the cursor (null means "from the beginning"). While hasMore is
+     * true, ask again with nextCursor.
+     */
+    TransactionsPage syncTransactions(String accessToken, @Nullable String cursor);
+
     record ExchangedItem(String itemId, String accessToken) {
 
         @Override
@@ -33,5 +40,17 @@ public interface PlaidGateway {
     record PlaidAccount(String accountId, String name, @Nullable String officialName, @Nullable String mask,
         String type, @Nullable String subtype, @Nullable Long currentCents, @Nullable Long availableCents,
         @Nullable String isoCurrencyCode) {
+    }
+
+    /** nextCursor is empty while Plaid is still gathering a new bank's transactions. */
+    record TransactionsPage(List<PlaidTransaction> added, List<PlaidTransaction> modified, List<String> removed,
+        String nextCursor, boolean hasMore) {
+    }
+
+    /** Positive amounts are money leaving the account (Plaid's convention); negative amounts are money coming in. */
+    record PlaidTransaction(String transactionId, String accountId, @Nullable String pendingTransactionId,
+        long amountCents, @Nullable String isoCurrencyCode, LocalDate date, @Nullable LocalDate authorizedDate,
+        String name, @Nullable String merchantName, boolean pending, @Nullable String categoryPrimary,
+        @Nullable String categoryDetailed) {
     }
 }

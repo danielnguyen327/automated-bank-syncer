@@ -14,8 +14,13 @@ import com.plaid.client.model.ItemPublicTokenExchangeResponse;
 import com.plaid.client.model.ItemRemoveRequest;
 import com.plaid.client.model.LinkTokenCreateRequest;
 import com.plaid.client.model.LinkTokenCreateRequestUser;
+import com.plaid.client.model.PersonalFinanceCategory;
 import com.plaid.client.model.PlaidError;
 import com.plaid.client.model.Products;
+import com.plaid.client.model.RemovedTransaction;
+import com.plaid.client.model.Transaction;
+import com.plaid.client.model.TransactionsSyncRequest;
+import com.plaid.client.model.TransactionsSyncResponse;
 import com.plaid.client.request.PlaidApi;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -77,6 +82,31 @@ class PlaidApiGateway implements PlaidGateway {
     @Override
     public void removeItem(String accessToken) {
         call(plaid.itemRemove(new ItemRemoveRequest().accessToken(accessToken)));
+    }
+
+    @Override
+    public TransactionsPage syncTransactions(String accessToken, @Nullable String cursor) {
+        // 500 is the most Plaid sends in one page
+        TransactionsSyncRequest request = new TransactionsSyncRequest().accessToken(accessToken).count(500);
+        if (cursor != null) {
+            request.cursor(cursor);
+        }
+        TransactionsSyncResponse response = call(plaid.transactionsSync(request));
+        return new TransactionsPage(
+            response.getAdded().stream().map(PlaidApiGateway::toTransaction).toList(),
+            response.getModified().stream().map(PlaidApiGateway::toTransaction).toList(),
+            response.getRemoved().stream().map(RemovedTransaction::getTransactionId).toList(),
+            Objects.requireNonNullElse(response.getNextCursor(), ""),
+            Boolean.TRUE.equals(response.getHasMore()));
+    }
+
+    private static PlaidTransaction toTransaction(Transaction transaction) {
+        PersonalFinanceCategory category = transaction.getPersonalFinanceCategory();
+        return new PlaidTransaction(transaction.getTransactionId(), transaction.getAccountId(),
+            transaction.getPendingTransactionId(), Objects.requireNonNull(cents(transaction.getAmount())),
+            transaction.getIsoCurrencyCode(), transaction.getDate(), transaction.getAuthorizedDate(),
+            transaction.getName(), transaction.getMerchantName(), Boolean.TRUE.equals(transaction.getPending()),
+            category == null ? null : category.getPrimary(), category == null ? null : category.getDetailed());
     }
 
     private static PlaidAccount toAccount(AccountBase account) {

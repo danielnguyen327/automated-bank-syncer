@@ -27,9 +27,11 @@ class BankController {
     }
 
     private final BankService banks;
+    private final SyncService syncs;
 
-    BankController(BankService banks) {
+    BankController(BankService banks, SyncService syncs) {
         this.banks = banks;
+        this.syncs = syncs;
     }
 
     @PostMapping("/link-token")
@@ -46,6 +48,12 @@ class BankController {
     @GetMapping
     List<BankResponse> list(@AuthenticationPrincipal SignedInUser signedIn) {
         return banks.banks(signedIn.id());
+    }
+
+    /** Downloads the bank's newest transactions from Plaid. */
+    @PostMapping("/{id}/sync")
+    SyncService.SyncResult sync(@AuthenticationPrincipal SignedInUser signedIn, @PathVariable UUID id) {
+        return syncs.sync(signedIn.id(), id);
     }
 
     @DeleteMapping("/{id}")

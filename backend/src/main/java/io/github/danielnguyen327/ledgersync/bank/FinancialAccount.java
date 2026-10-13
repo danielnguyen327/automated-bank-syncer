@@ -92,4 +92,9 @@ public class FinancialAccount {
     public @Nullable String getIsoCurrencyCode() {
         return isoCurrencyCode;
     }
+
+    /** Plaid's id for this account. Each transaction from Plaid names its account by this id. */
+    String getPlaidAccountId() {
+        return plaidAccountId;
+    }
 }

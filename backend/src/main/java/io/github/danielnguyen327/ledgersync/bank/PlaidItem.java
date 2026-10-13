@@ -29,7 +29,11 @@ public class PlaidItem {
 
     private String accessTokenEncrypted;
 
+    private @Nullable String syncCursor;
+
     private String status = "active";
+
+    private @Nullable Instant lastSyncedAt;
 
     @Column(insertable = false, updatable = false) // the database fills it in
     private Instant createdAt;
@@ -55,11 +59,29 @@ public class PlaidItem {
         return institutionName;
     }
 
+    public UUID getUserId() {
+        return userId;
+    }
+
     public String getStatus() {
         return status;
     }
 
+    public @Nullable Instant getLastSyncedAt() {
+        return lastSyncedAt;
+    }
+
     String getAccessTokenEncrypted() {
         return accessTokenEncrypted;
+    }
+
+    /** Where the last finished sync stopped. The next sync asks Plaid for changes after this point. */
+    @Nullable String getSyncCursor() {
+        return syncCursor;
+    }
+
+    void markSynced(String cursor, Instant at) {
+        this.syncCursor = cursor;
+        this.lastSyncedAt = at;
     }
 }
