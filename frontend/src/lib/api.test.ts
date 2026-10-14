@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   createLinkToken,
+  describeSync,
   disconnectBank,
   errorMessage,
   messageFor,
   readCookie,
   signIn,
+  syncNewBank,
 } from "./api";
 
 describe("readCookie", () => {
@@ -113,6 +115,48 @@ describe("messageFor", () => {
   it("explains a network failure in plain words", () => {
     expect(messageFor(new TypeError("Failed to fetch"))).toBe(
       "Can’t reach LedgerSync right now. Try again in a moment.",
+    );
+  });
+});
+
+describe("syncNewBank", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("tries again while Plaid is still gathering a new bank's transactions", async () => {
+    vi.stubGlobal("document", { cookie: "XSRF-TOKEN=abc-123" });
+    const notReady = { ready: false, added: 0, updated: 0, removed: 0 };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(notReady))
+      .mockResolvedValueOnce(Response.json(notReady))
+      .mockResolvedValueOnce(Response.json({ ready: true, added: 18, updated: 0, removed: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const pause = vi.fn(async () => {});
+
+    const result = await syncNewBank("bank-1", pause);
+
+    expect(result.added).toBe(18);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(pause).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("describeSync", () => {
+  it("lists only what changed", () => {
+    expect(describeSync({ ready: true, added: 3, updated: 0, removed: 1 })).toBe(
+      "Synced: 3 new, 1 removed.",
+    );
+  });
+  it("says when nothing changed", () => {
+    expect(describeSync({ ready: true, added: 0, updated: 0, removed: 0 })).toBe(
+      "Already up to date.",
+    );
+  });
+  it("explains when Plaid isn't ready yet", () => {
+    expect(describeSync({ ready: false, added: 0, updated: 0, removed: 0 })).toBe(
+      "Plaid is still gathering this bank’s transactions. Try again in a minute.",
     );
   });
 });

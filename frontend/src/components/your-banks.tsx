@@ -1,10 +1,14 @@
 import type { Account, Bank } from "@/lib/api";
 import { formatCents } from "@/lib/money";
+import { timeAgo } from "@/lib/time";
 import { DisconnectBankButton } from "./disconnect-bank-button";
 import { BankIcon, CardIcon } from "./icons";
+import { SyncBankButton } from "./sync-bank-button";
 
 /** Every connected bank and its accounts, with the balance Plaid reported when the bank was connected. */
 export function YourBanks({ banks }: { banks: Bank[] }) {
+  const now = new Date();
+
   return (
     <section aria-labelledby="banks-title" className="flex flex-col gap-3">
       <h2 id="banks-title" className="text-xs font-semibold tracking-wider text-ink-3 uppercase">
@@ -18,9 +22,15 @@ export function YourBanks({ banks }: { banks: Bank[] }) {
                 <span className="flex size-9 items-center justify-center rounded-full bg-muted text-accent">
                   <BankIcon className="size-[18px]" />
                 </span>
-                <span className="text-base font-semibold">{bank.institutionName}</span>
+                <div className="flex flex-col">
+                  <span className="text-base font-semibold">{bank.institutionName}</span>
+                  <span className="text-xs text-ink-3">{syncStatus(bank, now)}</span>
+                </div>
               </div>
-              <DisconnectBankButton bankId={bank.id} bankName={bank.institutionName} />
+              <div className="flex items-start gap-1">
+                <SyncBankButton bankId={bank.id} />
+                <DisconnectBankButton bankId={bank.id} bankName={bank.institutionName} />
+              </div>
             </div>
             <ul className="divide-y divide-line">
               {bank.accounts.map((account) => (
@@ -34,8 +44,16 @@ export function YourBanks({ banks }: { banks: Bank[] }) {
   );
 }
 
+/** "18 transactions · synced 5 minutes ago", or "Not synced yet". */
+function syncStatus(bank: Bank, now: Date): string {
+  if (!bank.lastSyncedAt) return "Not synced yet";
+  const count = `${bank.transactionCount} ${bank.transactionCount === 1 ? "transaction" : "transactions"}`;
+  return `${count} · synced ${timeAgo(bank.lastSyncedAt, now)}`;
+}
+
 function AccountRow({ account }: { account: Account }) {
   const isCard = account.type === "credit";
+  const isOwed = isCard || account.type === "loan"; // for cards and loans, Plaid's balance is what you owe
   const details = [account.subtype, account.mask && `•••• ${account.mask}`].filter(Boolean);
 
   return (
@@ -56,7 +74,7 @@ function AccountRow({ account }: { account: Account }) {
           <span className="font-mono text-sm tabular-nums">
             {formatCents(account.currentBalanceCents)}
           </span>
-          <span className="text-xs text-ink-3">{isCard ? "owed" : "balance"}</span>
+          <span className="text-xs text-ink-3">{isOwed ? "owed" : "balance"}</span>
         </div>
       )}
     </li>

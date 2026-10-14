@@ -23,11 +23,21 @@ export const bankSchema = z.object({
   id: z.string(),
   institutionName: z.string(),
   status: z.string(),
+  lastSyncedAt: z.string().nullable(),
+  transactionCount: z.number(),
   accounts: z.array(accountSchema),
+});
+
+const syncResultSchema = z.object({
+  ready: z.boolean(),
+  added: z.number(),
+  updated: z.number(),
+  removed: z.number(),
 });
 
 export type Account = z.infer<typeof accountSchema>;
 export type Bank = z.infer<typeof bankSchema>;
+export type SyncResult = z.infer<typeof syncResultSchema>;
 
 export class ApiError extends Error {
   constructor(
@@ -108,8 +118,38 @@ export async function createLinkToken(): Promise<string> {
 }
 
 /** Hands the backend the public token Plaid gave the browser. Only the backend sees the real access token. */
-export async function connectBank(publicToken: string): Promise<void> {
-  await send("POST", "/api/banks", { publicToken });
+export async function connectBank(publicToken: string): Promise<Bank> {
+  const response = await send("POST", "/api/banks", { publicToken });
+  return bankSchema.parse(await response.json());
+}
+
+/** Downloads the bank's newest transactions from Plaid. */
+export async function syncBank(bankId: string): Promise<SyncResult> {
+  const response = await send("POST", `/api/banks/${bankId}/sync`);
+  return syncResultSchema.parse(await response.json());
+}
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Plaid needs a few seconds to gather a new bank's transactions, so this tries several times. */
+export async function syncNewBank(bankId: string, pause = wait): Promise<SyncResult> {
+  for (let attempt = 1; ; attempt++) {
+    const result = await syncBank(bankId);
+    if (result.ready || attempt === 6) return result;
+    await pause(2000);
+  }
+}
+
+/** One sentence about what a sync changed. */
+export function describeSync(result: SyncResult): string {
+  if (!result.ready)
+    return "Plaid is still gathering this bank’s transactions. Try again in a minute.";
+  const parts = [
+    result.added > 0 && `${result.added} new`,
+    result.updated > 0 && `${result.updated} updated`,
+    result.removed > 0 && `${result.removed} removed`,
+  ].filter(Boolean);
+  return parts.length > 0 ? `Synced: ${parts.join(", ")}.` : "Already up to date.";
 }
 
 export async function disconnectBank(bankId: string): Promise<void> {

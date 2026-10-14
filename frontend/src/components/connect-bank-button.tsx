@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { usePlaidLink } from "react-plaid-link";
-import { connectBank, createLinkToken, messageFor } from "@/lib/api";
+import { connectBank, createLinkToken, messageFor, syncNewBank } from "@/lib/api";
 import { PlusIcon } from "./icons";
 
 const styles = {
@@ -22,6 +22,7 @@ export function ConnectBankButton({
   const router = useRouter();
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, startRefresh] = useTransition();
 
@@ -35,12 +36,16 @@ export function ConnectBankButton({
         return;
       }
       try {
-        await connectBank(publicToken);
+        const bank = await connectBank(publicToken);
+        setSyncing(true);
+        // The bank is saved either way. If this first sync fails, the bank's "Sync now" button shows why.
+        await syncNewBank(bank.id).catch(() => undefined);
         startRefresh(() => router.refresh());
       } catch (e) {
         setError(messageFor(e));
       } finally {
         setWorking(false);
+        setSyncing(false);
       }
     },
     onExit: () => {
@@ -76,7 +81,7 @@ export function ConnectBankButton({
         className={`flex h-11 items-center gap-2 rounded-lg px-5 text-[15px] font-semibold disabled:opacity-70 ${styles[look]}`}
       >
         <PlusIcon className="size-4" />
-        {busy ? "Connecting…" : label}
+        {busy ? (syncing ? "Getting transactions…" : "Connecting…") : label}
       </button>
       {error && (
         <p role="alert" className="text-sm text-danger">
