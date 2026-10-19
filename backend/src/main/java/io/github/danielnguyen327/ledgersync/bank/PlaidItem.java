@@ -80,8 +80,15 @@ public class PlaidItem {
         return syncCursor;
     }
 
+    /** Saves where this sync stopped. A sync that worked also means the bank's login works again. */
     void markSynced(String cursor, Instant at) {
         this.syncCursor = cursor;
         this.lastSyncedAt = at;
+        this.status = "active";
+    }
+
+    /** The bank ended the connection (Plaid's ITEM_LOGIN_REQUIRED), so the user has to sign in again. */
+    void markLoginRequired() {
+        this.status = "login_required";
     }
 }

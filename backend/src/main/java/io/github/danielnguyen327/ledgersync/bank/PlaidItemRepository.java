@@ -11,6 +11,8 @@ public interface PlaidItemRepository extends JpaRepository<PlaidItem, UUID> {
 
     List<PlaidItem> findByUserIdOrderByCreatedAt(UUID userId);
 
+    List<PlaidItem> findByStatus(String status);
+
     /** Finds a bank only if it belongs to this user, so nobody can reach another user's bank. */
     Optional<PlaidItem> findByIdAndUserId(UUID id, UUID userId);
 

@@ -22,4 +22,9 @@ public class PlaidException extends RuntimeException {
     public @Nullable String displayMessage() {
         return displayMessage;
     }
+
+    /** What to tell the user: Plaid's own sentence when it wrote one, otherwise a general one. */
+    public String userMessage() {
+        return displayMessage != null ? displayMessage : "Plaid couldn't finish that. Try again in a minute.";
+    }
 }

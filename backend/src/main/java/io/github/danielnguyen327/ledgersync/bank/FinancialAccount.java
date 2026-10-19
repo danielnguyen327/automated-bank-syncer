@@ -57,6 +57,13 @@ public class FinancialAccount {
         this.isoCurrencyCode = account.isoCurrencyCode();
     }
 
+    /** Copies the balances Plaid reports now. */
+    void updateBalances(PlaidGateway.PlaidAccount from) {
+        this.currentBalanceCents = from.currentCents();
+        this.availableBalanceCents = from.availableCents();
+        this.isoCurrencyCode = from.isoCurrencyCode();
+    }
+
     public UUID getId() {
         return id;
     }

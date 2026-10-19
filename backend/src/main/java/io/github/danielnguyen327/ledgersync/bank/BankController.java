@@ -50,6 +50,12 @@ class BankController {
         return banks.banks(signedIn.id());
     }
 
+    /** Syncs every bank the user has, and says how each one went. */
+    @PostMapping("/sync")
+    List<SyncService.BankSync> syncAll(@AuthenticationPrincipal SignedInUser signedIn) {
+        return syncs.syncAll(signedIn.id());
+    }
+
     /** Downloads the bank's newest transactions from Plaid. */
     @PostMapping("/{id}/sync")
     SyncService.SyncResult sync(@AuthenticationPrincipal SignedInUser signedIn, @PathVariable UUID id) {

@@ -21,8 +21,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Downloads a bank's new, changed and removed transactions from Plaid and applies them. Plaid's cursor
- * marks how far the last sync got, so each sync only receives what changed since.
+ * Downloads a bank's new, changed and removed transactions and its latest balances from Plaid, and
+ * applies them. Plaid's cursor marks how far the last sync got, so each sync only receives what changed since.
  */
 @Service
 public class SyncService {
@@ -31,6 +31,8 @@ public class SyncService {
 
     /** Plaid's answer when the bank's data changed while we were paging through it. */
     private static final String DATA_CHANGED = "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION";
+    /** Plaid's answer when the bank ended the connection and the user has to sign in again. */
+    private static final String LOGIN_REQUIRED = "ITEM_LOGIN_REQUIRED";
     private static final int MAX_ATTEMPTS = 3;
 
     private final PlaidGateway plaid;
@@ -38,15 +40,20 @@ public class SyncService {
     private final PlaidItemRepository items;
     private final FinancialAccountRepository accounts;
     private final BankTransactionRepository transactions;
+    private final SyncRunRepository runs;
+    private final BalanceSnapshots snapshots;
     private final TransactionTemplate transaction;
 
     SyncService(PlaidGateway plaid, TokenCipher cipher, PlaidItemRepository items, FinancialAccountRepository accounts,
-            BankTransactionRepository transactions, TransactionTemplate transaction) {
+            BankTransactionRepository transactions, SyncRunRepository runs, BalanceSnapshots snapshots,
+            TransactionTemplate transaction) {
         this.plaid = plaid;
         this.cipher = cipher;
         this.items = items;
         this.accounts = accounts;
         this.transactions = transactions;
+        this.runs = runs;
+        this.snapshots = snapshots;
         this.transaction = transaction;
     }
 
@@ -57,17 +64,93 @@ public class SyncService {
         static final SyncResult NOTHING_NEW = new SyncResult(true, 0, 0, 0);
     }
 
+    /** One bank's part of "sync all": what changed, or why it failed. */
+    public record BankSync(UUID bankId, String bankName, @Nullable SyncResult result, @Nullable String error) {
+    }
+
     /** Syncs one of the user's banks. */
     public SyncResult sync(UUID userId, UUID bankId) {
         PlaidItem item = items.findByIdAndUserId(bankId, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That bank isn't connected."));
-        return sync(item);
+        return run(item, "manual");
+    }
+
+    /** Syncs every bank the user has. One bank failing doesn't stop the others. */
+    public List<BankSync> syncAll(UUID userId) {
+        return items.findByUserIdOrderByCreatedAt(userId).stream().map(item -> {
+            try {
+                return new BankSync(item.getId(), item.getInstitutionName(), run(item, "manual"), null);
+            } catch (ResponseStatusException e) {
+                return new BankSync(item.getId(), item.getInstitutionName(), null, e.getReason());
+            } catch (PlaidException e) {
+                return new BankSync(item.getId(), item.getInstitutionName(), null, e.userMessage());
+            } catch (RuntimeException e) {
+                log.warn("Sync of bank {} failed", item.getId(), e);
+                return new BankSync(item.getId(), item.getInstitutionName(), null,
+                    "Something went wrong. Try again in a minute.");
+            }
+        }).toList();
     }
 
     /**
-     * Downloads every page of changes first, then saves them and the new cursor together in one database
-     * transaction. If anything fails, nothing is saved and the next sync starts again from the old cursor.
-     * Saving a transaction twice updates the same row, so starting again never creates duplicates.
+     * Syncs every bank of every user, for the 3-hourly schedule. Banks waiting for the user to sign in
+     * again are skipped, and one bank failing doesn't stop the others.
+     */
+    public void syncEveryBank() {
+        List<PlaidItem> active = items.findByStatus("active");
+        int failed = 0;
+        for (PlaidItem item : active) {
+            try {
+                run(item, "schedule");
+            } catch (RuntimeException e) {
+                failed++;
+                log.warn("Scheduled sync of bank {} failed: {}", item.getId(), e.getMessage());
+            }
+        }
+        log.info("Scheduled sync finished: {} banks, {} failed", active.size(), failed);
+    }
+
+    /** Runs one sync and records it in sync_run, whether it worked or not. */
+    private SyncResult run(PlaidItem item, String triggeredBy) {
+        SyncRun run = runs.save(new SyncRun(item.getUserId(), item.getId(), triggeredBy));
+        try {
+            SyncResult result = sync(item);
+            if (!result.ready()) {
+                runs.delete(run); // Plaid wasn't ready, so there was nothing to sync yet
+                return result;
+            }
+            run.succeeded(result);
+            runs.save(run);
+            return result;
+        } catch (PlaidException e) {
+            recordFailure(run, e.code(), e.getMessage());
+            if (e.code().equals(LOGIN_REQUIRED)) {
+                transaction.executeWithoutResult(status ->
+                    items.findById(item.getId()).ifPresent(PlaidItem::markLoginRequired));
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    item.getInstitutionName() + " needs you to sign in again.");
+            }
+            throw e;
+        } catch (RuntimeException e) {
+            recordFailure(run, "INTERNAL_ERROR", e.getMessage());
+            throw e;
+        }
+    }
+
+    private void recordFailure(SyncRun run, String code, @Nullable String message) {
+        run.failed(code, message);
+        try {
+            runs.save(run);
+        } catch (RuntimeException e) {
+            log.warn("Couldn't record a failed sync: {}", e.getMessage()); // the bank was disconnected meanwhile
+        }
+    }
+
+    /**
+     * Downloads every page of changes and the latest balances first, then saves them and the new cursor
+     * together in one database transaction. If anything fails, nothing is saved and the next sync starts
+     * again from the old cursor. Saving a transaction twice updates the same row, so starting again never
+     * creates duplicates.
      */
     private SyncResult sync(PlaidItem item) {
         String accessToken = cipher.decrypt(item.getAccessTokenEncrypted());
@@ -76,7 +159,8 @@ public class SyncService {
         if (changes.cursor.isEmpty()) {
             return SyncResult.NOT_READY; // nothing to save yet, so the next sync starts from the beginning
         }
-        return transaction.execute(status -> save(item.getId(), startCursor, changes));
+        List<PlaidGateway.PlaidAccount> balances = plaid.getItemDetails(accessToken).accounts();
+        return transaction.execute(status -> save(item.getId(), startCursor, changes, balances));
     }
 
     /** Asks Plaid for pages until there are no more. If Plaid's data changes partway, starts over. */
@@ -102,14 +186,18 @@ public class SyncService {
         }
     }
 
-    private SyncResult save(UUID itemId, @Nullable String startCursor, Changes changes) {
+    private SyncResult save(UUID itemId, @Nullable String startCursor, Changes changes,
+            List<PlaidGateway.PlaidAccount> balances) {
         PlaidItem item = items.findLockedById(itemId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That bank isn't connected."));
         if (!Objects.equals(item.getSyncCursor(), startCursor)) {
             return SyncResult.NOTHING_NEW; // another sync of this bank finished first and already saved these changes
         }
         UUID userId = item.getUserId();
-        Map<String, UUID> accountIds = accounts.findByItemId(itemId).stream()
+        List<FinancialAccount> bankAccounts = accounts.findByItemId(itemId);
+        updateBalances(bankAccounts, balances);
+        bankAccounts.forEach(account -> snapshots.saveToday(userId, account));
+        Map<String, UUID> accountIds = bankAccounts.stream()
             .collect(Collectors.toMap(FinancialAccount::getPlaidAccountId, FinancialAccount::getId));
         Map<String, BankTransaction> existing = changes.upserts.isEmpty() ? Map.of()
             : transactions.findByUserIdAndPlaidTransactionIdIn(userId, changes.upserts.keySet()).stream()
@@ -143,6 +231,18 @@ public class SyncService {
         }
         item.markSynced(changes.cursor, Instant.now()); // saved when the transaction commits
         return new SyncResult(true, added, updated, removed);
+    }
+
+    /** Copies Plaid's latest balances onto the accounts LedgerSync has. Accounts Plaid didn't mention keep theirs. */
+    private static void updateBalances(List<FinancialAccount> bankAccounts, List<PlaidGateway.PlaidAccount> balances) {
+        Map<String, PlaidGateway.PlaidAccount> latest = balances.stream()
+            .collect(Collectors.toMap(PlaidGateway.PlaidAccount::accountId, Function.identity()));
+        for (FinancialAccount account : bankAccounts) {
+            PlaidGateway.PlaidAccount from = latest.get(account.getPlaidAccountId());
+            if (from != null) {
+                account.updateBalances(from); // saved when the transaction commits
+            }
+        }
     }
 
     /** Every page's changes combined, in order, so a later page wins over an earlier one. */

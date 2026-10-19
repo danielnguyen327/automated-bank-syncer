@@ -41,7 +41,6 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
   ProblemDetail handlePlaid(PlaidException ex) {
     logger.warn("Plaid error " + ex.code() + ": " + ex.getMessage()); // Plaid's messages never contain tokens
     HttpStatus status = OUR_SIDE.contains(ex.code()) ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
-    String detail = ex.displayMessage() != null ? ex.displayMessage() : "Plaid couldn't finish that. Try again in a minute.";
-    return ProblemDetail.forStatusAndDetail(status, detail);
+    return ProblemDetail.forStatusAndDetail(status, ex.userMessage());
   }
 }

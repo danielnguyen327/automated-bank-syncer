@@ -22,3 +22,6 @@ plaid:
 
 ledgersync:
   token-encryption-key: ${TOKEN_ENCRYPTION_KEY:}
+  sync:
+    # Every 3 hours, at 17 minutes past (00:17, 03:17, … UTC). "-" turns automatic syncing off.
+    cron: "0 17 */3 * * *"

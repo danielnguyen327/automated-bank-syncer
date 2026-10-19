@@ -21,7 +21,10 @@ class TestcontainersConfiguration {
 
 	@Bean
 	DynamicPropertyRegistrar testSecrets() {
-		return registry -> registry.add("ledgersync.token-encryption-key", () -> TEST_TOKEN_KEY);
+		return registry -> {
+			registry.add("ledgersync.token-encryption-key", () -> TEST_TOKEN_KEY);
+			registry.add("ledgersync.sync.cron", () -> "-"); // no automatic syncs during tests; tests start them
+		};
 	}
 
 }

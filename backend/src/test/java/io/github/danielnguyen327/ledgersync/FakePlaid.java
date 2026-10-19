@@ -37,10 +37,14 @@ class FakePlaid implements PlaidGateway {
     /** The cursor of every sync request, in order. A sync from the beginning shows up as "start". */
     final List<String> requestedCursors = new CopyOnWriteArrayList<>();
     private final Map<String, String> bankByAccessToken = new ConcurrentHashMap<>();
+    /** Balances a test changed, by Plaid account id. Other accounts keep their starting balance. */
+    private final Map<String, Long> currentBalances = new ConcurrentHashMap<>();
 
     /** Every change at "Plaid", per bank. A cursor is a position in this list. */
     private final Map<String, List<Change>> changesByAccessToken = new ConcurrentHashMap<>();
     private final Set<String> notReady = ConcurrentHashMap.newKeySet();
+    /** Plaid's error code for banks whose syncs should fail, by access token. */
+    private final Map<String, String> syncErrors = new ConcurrentHashMap<>();
     private final Set<String> midSync = ConcurrentHashMap.newKeySet();
     private final AtomicInteger dataChangesToReport = new AtomicInteger();
     private final AtomicReference<@Nullable Runnable> beforeNextPage = new AtomicReference<>();
@@ -53,8 +57,10 @@ class FakePlaid implements PlaidGateway {
         removedAccessTokens.clear();
         requestedCursors.clear();
         bankByAccessToken.clear();
+        currentBalances.clear();
         changesByAccessToken.clear();
         notReady.clear();
+        syncErrors.clear();
         midSync.clear();
         dataChangesToReport.set(0);
         beforeNextPage.set(null);
@@ -83,11 +89,13 @@ class FakePlaid implements PlaidGateway {
         if (bank.equals("Broken Bank")) {
             throw new PlaidException("INTERNAL_SERVER_ERROR", null, "Plaid had a problem");
         }
+        String checking = checking(accessToken);
+        String card = card(accessToken);
         return new ItemDetails("ins_" + bank.length(), bank, List.of(
-            new PlaidAccount(checking(accessToken), "Plaid Checking", "Plaid Gold Standard 0% Interest Checking",
-                "0000", "depository", "checking", 11000L, 10000L, "USD"),
-            new PlaidAccount(accessToken + "-card", "Plaid Credit Card", "Plaid Diamond 12.5% APR Interest Credit Card",
-                "3333", "credit", "credit card", 41000L, null, "USD")));
+            new PlaidAccount(checking, "Plaid Checking", "Plaid Gold Standard 0% Interest Checking", "0000",
+                "depository", "checking", currentBalances.getOrDefault(checking, 11000L), 10000L, "USD"),
+            new PlaidAccount(card, "Plaid Credit Card", "Plaid Diamond 12.5% APR Interest Credit Card", "3333",
+                "credit", "credit card", currentBalances.getOrDefault(card, 41000L), null, "USD")));
     }
 
     @Override
@@ -101,6 +109,10 @@ class FakePlaid implements PlaidGateway {
         Runnable action = beforeNextPage.getAndSet(null);
         if (action != null) {
             action.run();
+        }
+        String error = syncErrors.get(accessToken);
+        if (error != null) {
+            throw new PlaidException(error, null, "sync failed: " + error);
         }
         if (notReady.contains(accessToken)) {
             return new TransactionsPage(List.of(), List.of(), List.of(), "", false);
@@ -149,6 +161,25 @@ class FakePlaid implements PlaidGateway {
         }
     }
 
+    /** The bank now reports a different current balance for this account. */
+    void changeBalance(String accountId, long currentCents) {
+        currentBalances.put(accountId, currentCents);
+    }
+
+    /** Every sync of this bank fails with Plaid's error code, until stopFailing. */
+    void failSyncs(String accessToken, String plaidErrorCode) {
+        syncErrors.put(accessToken, plaidErrorCode);
+    }
+
+    /** The bank ended the connection: syncs fail with ITEM_LOGIN_REQUIRED until stopFailing. */
+    void requireLogin(String accessToken) {
+        failSyncs(accessToken, "ITEM_LOGIN_REQUIRED");
+    }
+
+    void stopFailing(String accessToken) {
+        syncErrors.remove(accessToken);
+    }
+
     /** Plaid is still gathering this bank's transactions, like in the first seconds after connecting. */
     void notReadyYet(String accessToken) {
         notReady.add(accessToken);
@@ -171,6 +202,11 @@ class FakePlaid implements PlaidGateway {
     /** Plaid's id for the checking account of the bank connected with this access token. */
     static String checking(String accessToken) {
         return accessToken + "-checking";
+    }
+
+    /** Plaid's id for the credit card of the bank connected with this access token. */
+    static String card(String accessToken) {
+        return accessToken + "-card";
     }
 
     /** A posted purchase on this account. */

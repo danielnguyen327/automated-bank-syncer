@@ -138,6 +138,7 @@ class SyncTests {
     @Test
     void aSyncThatFailsSavesNothing() {
         plaid.add(accessToken, purchases(7));
+        plaid.changeBalance(FakePlaid.checking(accessToken), 25075);
         plaid.reportDataChanged(3); // more times than the sync is willing to start over
 
         Browser.Response response = sam.post("/api/banks/" + bankId + "/sync", "");
@@ -145,6 +146,21 @@ class SyncTests {
         assertThat(response.status()).isEqualTo(502);
         assertThat(transactionCount()).isZero();
         assertThat(jdbc.queryForObject("select sync_cursor from plaid_item", String.class)).isNull();
+        assertThat(currentBalance(FakePlaid.checking(accessToken))).isEqualTo(11000); // still the old balance
+    }
+
+    @Test
+    void aSyncRefreshesBalances() {
+        plaid.changeBalance(FakePlaid.checking(accessToken), 25075);
+        plaid.changeBalance(FakePlaid.card(accessToken), 52010);
+
+        sync();
+
+        assertThat(currentBalance(FakePlaid.checking(accessToken))).isEqualTo(25075);
+        assertThat(currentBalance(FakePlaid.card(accessToken))).isEqualTo(52010);
+        JsonNode checking = body(sam.get("/api/banks")).get(0).get("accounts").get(0);
+        assertThat(checking.get("name").asString()).isEqualTo("Plaid Checking");
+        assertThat(checking.get("currentBalanceCents").asLong()).isEqualTo(25075);
     }
 
     @Test
@@ -221,6 +237,11 @@ class SyncTests {
 
     private int transactionCount() {
         return jdbc.queryForObject("select count(*) from bank_transaction", Integer.class);
+    }
+
+    private long currentBalance(String plaidAccountId) {
+        return jdbc.queryForObject("select current_balance_cents from financial_account where plaid_account_id = ?",
+            Long.class, plaidAccountId);
     }
 
     private JsonNode body(Browser.Response response) {

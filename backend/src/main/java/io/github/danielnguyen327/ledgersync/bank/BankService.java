@@ -25,15 +25,17 @@ public class BankService {
     private final PlaidItemRepository items;
     private final FinancialAccountRepository accounts;
     private final BankTransactionRepository transactions;
+    private final SyncRunRepository runs;
     private final TransactionTemplate transaction;
 
     BankService(PlaidGateway plaid, TokenCipher cipher, PlaidItemRepository items, FinancialAccountRepository accounts,
-            BankTransactionRepository transactions, TransactionTemplate transaction) {
+            BankTransactionRepository transactions, SyncRunRepository runs, TransactionTemplate transaction) {
         this.plaid = plaid;
         this.cipher = cipher;
         this.items = items;
         this.accounts = accounts;
         this.transactions = transactions;
+        this.runs = runs;
         this.transaction = transaction;
     }
 
@@ -56,7 +58,7 @@ public class BankService {
                 List<FinancialAccount> saved = accounts.saveAll(details.accounts().stream()
                     .map(account -> new FinancialAccount(userId, item.getId(), account))
                     .toList());
-                return BankResponse.from(item, saved, 0); // no transactions until the first sync
+                return BankResponse.from(item, saved, 0, List.of()); // nothing synced yet
             });
         } catch (RuntimeException e) {
             removeQuietly(exchanged.accessToken()); // don't leave a connection at Plaid that isn't saved here
@@ -64,16 +66,19 @@ public class BankService {
         }
     }
 
-    /** The user's banks, oldest first, each with its accounts and how many transactions it has. */
+    /** The user's banks, oldest first, each with its accounts, transaction count and last 3 syncs. */
     public List<BankResponse> banks(UUID userId) {
         Map<UUID, List<FinancialAccount>> accountsByBank = accounts.findByUserIdOrderByName(userId).stream()
             .collect(Collectors.groupingBy(FinancialAccount::getItemId));
         Map<UUID, Long> transactionsByBank = transactions.countByBank(userId).stream()
             .collect(Collectors.toMap(BankTransactionRepository.BankCount::getBankId,
                 BankTransactionRepository.BankCount::getTotal));
+        Map<UUID, List<SyncRun>> syncsByBank = runs.findTop50ByUserIdOrderByStartedAtDesc(userId).stream()
+            .collect(Collectors.groupingBy(SyncRun::getItemId));
         return items.findByUserIdOrderByCreatedAt(userId).stream()
             .map(item -> BankResponse.from(item, accountsByBank.getOrDefault(item.getId(), List.of()),
-                transactionsByBank.getOrDefault(item.getId(), 0L)))
+                transactionsByBank.getOrDefault(item.getId(), 0L),
+                syncsByBank.getOrDefault(item.getId(), List.of()).stream().limit(3).toList()))
             .toList();
     }
 
