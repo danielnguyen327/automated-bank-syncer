@@ -19,6 +19,16 @@ const accountSchema = z.object({
   isoCurrencyCode: z.string().nullable(),
 });
 
+const syncRunSchema = z.object({
+  startedAt: z.string(),
+  triggeredBy: z.string(),
+  status: z.string(),
+  added: z.number(),
+  updated: z.number(),
+  removed: z.number(),
+  error: z.string().nullable(),
+});
+
 export const bankSchema = z.object({
   id: z.string(),
   institutionName: z.string(),
@@ -26,6 +36,7 @@ export const bankSchema = z.object({
   lastSyncedAt: z.string().nullable(),
   transactionCount: z.number(),
   accounts: z.array(accountSchema),
+  recentSyncs: z.array(syncRunSchema),
 });
 
 const syncResultSchema = z.object({
@@ -35,9 +46,18 @@ const syncResultSchema = z.object({
   removed: z.number(),
 });
 
+const bankSyncSchema = z.object({
+  bankId: z.string(),
+  bankName: z.string(),
+  result: syncResultSchema.nullable(),
+  error: z.string().nullable(),
+});
+
 export type Account = z.infer<typeof accountSchema>;
 export type Bank = z.infer<typeof bankSchema>;
+export type SyncRun = z.infer<typeof syncRunSchema>;
 export type SyncResult = z.infer<typeof syncResultSchema>;
+export type BankSync = z.infer<typeof bankSyncSchema>;
 
 export class ApiError extends Error {
   constructor(
@@ -140,16 +160,61 @@ export async function syncNewBank(bankId: string, pause = wait): Promise<SyncRes
   }
 }
 
+/** Syncs every bank the user has. Each bank reports its own result or error. */
+export async function syncAllBanks(): Promise<BankSync[]> {
+  const response = await send("POST", "/api/banks/sync");
+  return z.array(bankSyncSchema).parse(await response.json());
+}
+
+type Changes = { added: number; updated: number; removed: number };
+
+/** "3 new, 1 removed", or "" when nothing changed. */
+function describeChanges(changes: Changes): string {
+  return [
+    changes.added > 0 && `${changes.added} new`,
+    changes.updated > 0 && `${changes.updated} updated`,
+    changes.removed > 0 && `${changes.removed} removed`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 /** One sentence about what a sync changed. */
 export function describeSync(result: SyncResult): string {
   if (!result.ready)
     return "Plaid is still gathering this bank’s transactions. Try again in a minute.";
-  const parts = [
-    result.added > 0 && `${result.added} new`,
-    result.updated > 0 && `${result.updated} updated`,
-    result.removed > 0 && `${result.removed} removed`,
-  ].filter(Boolean);
-  return parts.length > 0 ? `Synced: ${parts.join(", ")}.` : "Already up to date.";
+  const changes = describeChanges(result);
+  return changes ? `Synced: ${changes}.` : "No new transactions.";
+}
+
+/** What "Sync all" did: the combined changes, then each bank that failed and why. */
+export function describeSyncAll(results: BankSync[]): string {
+  const done = results.flatMap((r) => (r.result ? [r.result] : []));
+  const errors = results.flatMap((r) => (r.error ? [r.error] : []));
+  if (done.length === 0) return errors.join(" ") || "There are no banks to sync.";
+  const total = done.reduce(
+    (sum, r) => ({
+      added: sum.added + r.added,
+      updated: sum.updated + r.updated,
+      removed: sum.removed + r.removed,
+    }),
+    { added: 0, updated: 0, removed: 0 },
+  );
+  const banks =
+    done.length === results.length
+      ? `Synced ${results.length} ${results.length === 1 ? "bank" : "banks"}`
+      : `Synced ${done.length} of ${results.length} banks`;
+  const changes = describeChanges(total);
+  return [changes ? `${banks}: ${changes}.` : `${banks}. No new transactions.`, ...errors].join(
+    " ",
+  );
+}
+
+/** The result part of a line in a bank's recent syncs. */
+export function describeRun(run: SyncRun): string {
+  if (run.status === "running") return "Syncing…";
+  if (run.error) return run.error;
+  return describeChanges(run) || "No new transactions";
 }
 
 export async function disconnectBank(bankId: string): Promise<void> {

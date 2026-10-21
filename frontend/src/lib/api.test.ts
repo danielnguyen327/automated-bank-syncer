@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   createLinkToken,
+  describeRun,
   describeSync,
+  describeSyncAll,
   disconnectBank,
   errorMessage,
   messageFor,
@@ -151,12 +153,63 @@ describe("describeSync", () => {
   });
   it("says when nothing changed", () => {
     expect(describeSync({ ready: true, added: 0, updated: 0, removed: 0 })).toBe(
-      "Already up to date.",
+      "No new transactions.",
     );
   });
   it("explains when Plaid isn't ready yet", () => {
     expect(describeSync({ ready: false, added: 0, updated: 0, removed: 0 })).toBe(
       "Plaid is still gathering this bank’s transactions. Try again in a minute.",
     );
+  });
+});
+
+describe("describeSyncAll", () => {
+  const changed = { ready: true, added: 3, updated: 0, removed: 1 };
+  const nothing = { ready: true, added: 0, updated: 0, removed: 0 };
+
+  it("adds up the changes across banks", () => {
+    expect(
+      describeSyncAll([
+        { bankId: "a", bankName: "Tartan Bank", result: changed, error: null },
+        { bankId: "b", bankName: "First Platypus Bank", result: nothing, error: null },
+      ]),
+    ).toBe("Synced 2 banks: 3 new, 1 removed.");
+  });
+  it("names each bank that failed after what worked", () => {
+    expect(
+      describeSyncAll([
+        {
+          bankId: "a",
+          bankName: "First Platypus Bank",
+          result: null,
+          error: "First Platypus Bank needs you to sign in again.",
+        },
+        { bankId: "b", bankName: "Tartan Bank", result: nothing, error: null },
+      ]),
+    ).toBe(
+      "Synced 1 of 2 banks. No new transactions. First Platypus Bank needs you to sign in again.",
+    );
+  });
+});
+
+describe("describeRun", () => {
+  const run = {
+    startedAt: "2026-10-18T09:17:00Z",
+    triggeredBy: "schedule",
+    status: "succeeded",
+    added: 0,
+    updated: 0,
+    removed: 0,
+    error: null,
+  };
+
+  it("shows what changed, or that nothing did", () => {
+    expect(describeRun({ ...run, added: 2, updated: 1 })).toBe("2 new, 1 updated");
+    expect(describeRun(run)).toBe("No new transactions");
+  });
+  it("shows why a sync failed", () => {
+    expect(
+      describeRun({ ...run, status: "failed", error: "The bank needs you to sign in again." }),
+    ).toBe("The bank needs you to sign in again.");
   });
 });
