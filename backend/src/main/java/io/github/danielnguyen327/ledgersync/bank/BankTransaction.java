@@ -71,4 +71,41 @@ public class BankTransaction {
     String getPlaidTransactionId() {
         return plaidTransactionId;
     }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getAccountId() {
+        return accountId;
+    }
+
+    /** Positive is money leaving the account, negative is money coming in (Plaid's convention). */
+    public long getAmountCents() {
+        return amountCents;
+    }
+
+    public @Nullable String getIsoCurrencyCode() {
+        return isoCurrencyCode;
+    }
+
+    public LocalDate getTransactionDate() {
+        return transactionDate;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public @Nullable String getMerchantName() {
+        return merchantName;
+    }
+
+    public boolean isPending() {
+        return pending;
+    }
+
+    public @Nullable String getPfcPrimary() {
+        return pfcPrimary;
+    }
 }

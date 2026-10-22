@@ -209,6 +209,13 @@ class FakePlaid implements PlaidGateway {
         return accessToken + "-card";
     }
 
+    /** A posted transaction with one of Plaid's category codes, like "FOOD_AND_DRINK", on a given day. */
+    static PlaidTransaction spent(String accountId, String name, long amountCents, String plaidCategory,
+            LocalDate date) {
+        return new PlaidTransaction(name, accountId, null, amountCents, "USD", date, null, name, name, false,
+            plaidCategory, plaidCategory + "_OTHER");
+    }
+
     /** A posted purchase on this account. */
     static PlaidTransaction purchase(String accountId, String id, long amountCents, String name) {
         return transaction(accountId, id, null, amountCents, name, false);

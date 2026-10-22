@@ -1,15 +1,21 @@
 package io.github.danielnguyen327.ledgersync.bank;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
-public interface BankTransactionRepository extends JpaRepository<BankTransaction, UUID> {
+public interface BankTransactionRepository extends JpaRepository<BankTransaction, UUID>,
+        JpaSpecificationExecutor<BankTransaction> {
 
     List<BankTransaction> findByUserIdAndPlaidTransactionIdIn(UUID userId, Collection<String> plaidTransactionIds);
+
+    /** The user's transactions dated from one day to another, both days included. */
+    List<BankTransaction> findByUserIdAndTransactionDateBetween(UUID userId, LocalDate from, LocalDate to);
 
     /** Deletes the given transactions, but only this user's. Returns how many were deleted. */
     @Modifying
