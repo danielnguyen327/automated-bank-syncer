@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 class DashboardController {
 
     private final TransactionService transactions;
+    private final NetWorthService netWorth;
 
-    DashboardController(TransactionService transactions) {
+    DashboardController(TransactionService transactions, NetWorthService netWorth) {
         this.transactions = transactions;
+        this.netWorth = netWorth;
     }
 
     @GetMapping("/transactions")
@@ -33,5 +35,10 @@ class DashboardController {
     TransactionService.SpendingSummary spending(@AuthenticationPrincipal SignedInUser signedIn,
             @RequestParam(required = false) @Nullable String accountType) {
         return transactions.spending(signedIn.id(), accountType);
+    }
+
+    @GetMapping("/net-worth")
+    NetWorthService.NetWorth netWorth(@AuthenticationPrincipal SignedInUser signedIn) {
+        return netWorth.netWorth(signedIn.id());
     }
 }

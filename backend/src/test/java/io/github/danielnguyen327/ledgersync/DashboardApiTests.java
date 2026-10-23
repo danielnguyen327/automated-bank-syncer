@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/** The transactions list and spending by category. */
+/** The transactions list, spending by category, and net worth over time. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import({TestcontainersConfiguration.class, FakePlaid.Config.class})
 class DashboardApiTests {
@@ -119,12 +119,48 @@ class DashboardApiTests {
     }
 
     @Test
+    void netWorthIsWhatYouHaveMinusWhatYouOweRebuiltBackwardsFromTransactions() {
+        // The fake bank has $110.00 in checking and $410.00 owed on the card.
+        add(spent(checking, "Groceries", 2000, "FOOD_AND_DRINK", TODAY.minusDays(1)),
+            spent(card, "Flight", 30000, "TRAVEL", TODAY.minusDays(2)));
+
+        JsonNode worth = body(sam.get("/api/net-worth"));
+        JsonNode history = worth.get("history");
+
+        assertThat(worth.get("assetsCents").asLong()).isEqualTo(11000);
+        assertThat(worth.get("owedCents").asLong()).isEqualTo(41000);
+        assertThat(worth.get("netCents").asLong()).isEqualTo(-30000);
+        assertThat(history.size()).isEqualTo(90);
+        assertThat(netOn(history, 0)).isEqualTo(-30000); // today
+        assertThat(netOn(history, 1)).isEqualTo(-30000); // nothing happened today
+        assertThat(netOn(history, 2)).isEqualTo(-28000); // before yesterday's $20 groceries
+        assertThat(netOn(history, 3)).isEqualTo(2000); // before the $300 flight on the card
+        assertThat(worth.get("estimatedBefore").asString()).isEqualTo(TODAY.toString());
+    }
+
+    @Test
+    void aSavedDailyBalanceBeatsTheEstimate() {
+        add(spent(checking, "Groceries", 2000, "FOOD_AND_DRINK", TODAY.minusDays(1)));
+        jdbc.update("""
+            insert into balance_snapshot (user_id, account_id, snapshot_date, current_cents)
+            select user_id, id, ?, 99999 from financial_account where plaid_account_id = ?""",
+            TODAY.minusDays(1), checking);
+
+        JsonNode worth = body(sam.get("/api/net-worth"));
+
+        assertThat(netOn(worth.get("history"), 1)).isEqualTo(99999 - 41000);
+        assertThat(netOn(worth.get("history"), 2)).isEqualTo(99999 + 2000 - 41000); // the walk continues from it
+        assertThat(worth.get("estimatedBefore").asString()).isEqualTo(TODAY.minusDays(1).toString());
+    }
+
+    @Test
     void nobodyElseSeesYourMoney() {
         add(spent(card, "Flight", 30000, "TRAVEL", TODAY));
         Browser alex = signedUp("alex@example.com");
 
         assertThat(body(alex.get("/api/transactions")).get("transactions").size()).isZero();
         assertThat(body(alex.get("/api/spending")).get("totalCents").asLong()).isZero();
+        assertThat(body(alex.get("/api/net-worth")).get("netCents").asLong()).isZero();
     }
 
     private void add(PlaidTransaction... transactions) {
@@ -134,6 +170,13 @@ class DashboardApiTests {
 
     private int count(String path) {
         return body(sam.get(path)).get("transactions").size();
+    }
+
+    /** The net worth a number of days ago, read from the 90-day history (oldest first). */
+    private static long netOn(JsonNode history, int daysAgo) {
+        JsonNode point = history.get(history.size() - 1 - daysAgo);
+        assertThat(point.get("date").asString()).isEqualTo(TODAY.minusDays(daysAgo).toString());
+        return point.get("netCents").asLong();
     }
 
     private Browser signedUp(String email) {
