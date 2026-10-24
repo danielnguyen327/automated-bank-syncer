@@ -34,6 +34,8 @@ class FakePlaid implements PlaidGateway {
 
     final List<String> issuedAccessTokens = new CopyOnWriteArrayList<>();
     final List<String> removedAccessTokens = new CopyOnWriteArrayList<>();
+    /** The access tokens of banks that Plaid Link was reopened for, to reconnect them. */
+    final List<String> reconnectedAccessTokens = new CopyOnWriteArrayList<>();
     /** The cursor of every sync request, in order. A sync from the beginning shows up as "start". */
     final List<String> requestedCursors = new CopyOnWriteArrayList<>();
     private final Map<String, String> bankByAccessToken = new ConcurrentHashMap<>();
@@ -55,6 +57,7 @@ class FakePlaid implements PlaidGateway {
     void reset() {
         issuedAccessTokens.clear();
         removedAccessTokens.clear();
+        reconnectedAccessTokens.clear();
         requestedCursors.clear();
         bankByAccessToken.clear();
         currentBalances.clear();
@@ -69,6 +72,17 @@ class FakePlaid implements PlaidGateway {
     @Override
     public String createLinkToken(UUID userId) {
         return "link-sandbox-" + userId;
+    }
+
+    @Override
+    public String createUpdateLinkToken(UUID userId, String accessToken) {
+        reconnectedAccessTokens.add(accessToken);
+        return "link-sandbox-update-" + UUID.randomUUID();
+    }
+
+    @Override
+    public void expireSandboxLogin(String accessToken) {
+        requireLogin(accessToken);
     }
 
     @Override

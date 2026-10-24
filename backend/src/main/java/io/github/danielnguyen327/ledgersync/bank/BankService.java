@@ -84,14 +84,27 @@ public class BankService {
 
     /** Disconnects one bank: Plaid forgets it, then its row is deleted, and its accounts with it. */
     public void disconnect(UUID userId, UUID bankId) {
-        PlaidItem item = items.findByIdAndUserId(bankId, userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That bank isn't connected."));
-        forget(item);
+        forget(find(userId, bankId));
+    }
+
+    /** A link token that reopens Plaid's window for one of the user's banks, so they can sign in to it again. */
+    public String createReconnectLinkToken(UUID userId, UUID bankId) {
+        return plaid.createUpdateLinkToken(userId, cipher.decrypt(find(userId, bankId).getAccessTokenEncrypted()));
+    }
+
+    /** Sandbox only: Plaid starts treating one of the user's banks as needing a new sign-in. */
+    public void expireSandboxLogin(UUID userId, UUID bankId) {
+        plaid.expireSandboxLogin(cipher.decrypt(find(userId, bankId).getAccessTokenEncrypted()));
     }
 
     /** Disconnects every bank the user has, before their account is deleted. */
     public void disconnectAll(UUID userId) {
         items.findByUserIdOrderByCreatedAt(userId).forEach(this::forget);
+    }
+
+    private PlaidItem find(UUID userId, UUID bankId) {
+        return items.findByIdAndUserId(bankId, userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That bank isn't connected."));
     }
 
     private void forget(PlaidItem item) {

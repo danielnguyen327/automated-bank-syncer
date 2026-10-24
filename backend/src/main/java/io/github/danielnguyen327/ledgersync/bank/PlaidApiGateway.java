@@ -18,6 +18,7 @@ import com.plaid.client.model.PersonalFinanceCategory;
 import com.plaid.client.model.PlaidError;
 import com.plaid.client.model.Products;
 import com.plaid.client.model.RemovedTransaction;
+import com.plaid.client.model.SandboxItemResetLoginRequest;
 import com.plaid.client.model.Transaction;
 import com.plaid.client.model.TransactionsSyncRequest;
 import com.plaid.client.model.TransactionsSyncResponse;
@@ -64,6 +65,17 @@ class PlaidApiGateway implements PlaidGateway {
     }
 
     @Override
+    public String createUpdateLinkToken(UUID userId, String accessToken) {
+        LinkTokenCreateRequest request = new LinkTokenCreateRequest()
+            .user(new LinkTokenCreateRequestUser().clientUserId(userId.toString()))
+            .clientName("LedgerSync")
+            .accessToken(accessToken) // "update mode": Link signs the user in to this bank again, no products needed
+            .countryCodes(List.of(CountryCode.US))
+            .language("en");
+        return call(plaid.linkTokenCreate(request)).getLinkToken();
+    }
+
+    @Override
     public ExchangedItem exchangePublicToken(String publicToken) {
         ItemPublicTokenExchangeResponse response = call(plaid.itemPublicTokenExchange(
             new ItemPublicTokenExchangeRequest().publicToken(publicToken)));
@@ -98,6 +110,11 @@ class PlaidApiGateway implements PlaidGateway {
             response.getRemoved().stream().map(RemovedTransaction::getTransactionId).toList(),
             Objects.requireNonNullElse(response.getNextCursor(), ""),
             Boolean.TRUE.equals(response.getHasMore()));
+    }
+
+    @Override
+    public void expireSandboxLogin(String accessToken) {
+        call(plaid.sandboxItemResetLogin(new SandboxItemResetLoginRequest().accessToken(accessToken)));
     }
 
     private static PlaidTransaction toTransaction(Transaction transaction) {

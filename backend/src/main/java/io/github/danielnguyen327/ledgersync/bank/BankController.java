@@ -50,6 +50,12 @@ class BankController {
         return banks.banks(signedIn.id());
     }
 
+    /** A link token for reconnecting this bank: Plaid's window opens and asks the user to sign in again. */
+    @PostMapping("/{id}/link-token")
+    LinkTokenResponse reconnectLinkToken(@AuthenticationPrincipal SignedInUser signedIn, @PathVariable UUID id) {
+        return new LinkTokenResponse(banks.createReconnectLinkToken(signedIn.id(), id));
+    }
+
     /** Syncs every bank the user has, and says how each one went. */
     @PostMapping("/sync")
     List<SyncService.BankSync> syncAll(@AuthenticationPrincipal SignedInUser signedIn) {

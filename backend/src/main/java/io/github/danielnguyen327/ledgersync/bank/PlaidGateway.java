@@ -11,6 +11,9 @@ public interface PlaidGateway {
     /** A one-time token that opens Plaid Link (Plaid's bank sign-in window) for this user. */
     String createLinkToken(UUID userId);
 
+    /** A one-time token that reopens Plaid Link for a bank already connected, so the user can sign in again. */
+    String createUpdateLinkToken(UUID userId, String accessToken);
+
     /** Trades the short-lived public token from Plaid Link for the long-lived access token. */
     ExchangedItem exchangePublicToken(String publicToken);
 
@@ -25,6 +28,9 @@ public interface PlaidGateway {
      * true, ask again with nextCursor.
      */
     TransactionsPage syncTransactions(String accessToken, @Nullable String cursor);
+
+    /** Sandbox only: Plaid starts treating this bank as needing a new sign-in, so reconnecting can be tried. */
+    void expireSandboxLogin(String accessToken);
 
     record ExchangedItem(String itemId, String accessToken) {
 
