@@ -53,7 +53,51 @@ const bankSyncSchema = z.object({
   error: z.string().nullable(),
 });
 
+const transactionSchema = z.object({
+  id: z.string(),
+  date: z.string(),
+  name: z.string(),
+  merchantName: z.string().nullable(),
+  amountCents: z.number(),
+  isoCurrencyCode: z.string().nullable(),
+  pending: z.boolean(),
+  category: z.string(),
+  accountId: z.string(),
+  accountName: z.string(),
+  accountMask: z.string().nullable(),
+  accountType: z.string(),
+});
+
+export const transactionPageSchema = z.object({
+  transactions: z.array(transactionSchema),
+  hasMore: z.boolean(),
+});
+
+export const spendingSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  totalCents: z.number(),
+  previousFrom: z.string(),
+  previousTo: z.string(),
+  previousTotalCents: z.number(),
+  categories: z.array(
+    z.object({ category: z.string(), cents: z.number(), previousCents: z.number() }),
+  ),
+});
+
+export const netWorthSchema = z.object({
+  assetsCents: z.number(),
+  owedCents: z.number(),
+  netCents: z.number(),
+  estimatedBefore: z.string(),
+  history: z.array(z.object({ date: z.string(), netCents: z.number() })),
+});
+
 export type Account = z.infer<typeof accountSchema>;
+export type Transaction = z.infer<typeof transactionSchema>;
+export type TransactionPage = z.infer<typeof transactionPageSchema>;
+export type SpendingSummary = z.infer<typeof spendingSchema>;
+export type NetWorth = z.infer<typeof netWorthSchema>;
 export type Bank = z.infer<typeof bankSchema>;
 export type SyncRun = z.infer<typeof syncRunSchema>;
 export type SyncResult = z.infer<typeof syncResultSchema>;

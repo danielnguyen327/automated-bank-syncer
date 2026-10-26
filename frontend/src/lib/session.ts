@@ -1,7 +1,18 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { z } from "zod";
-import { bankSchema, userSchema, type Bank, type User } from "./api";
+import {
+  bankSchema,
+  netWorthSchema,
+  spendingSchema,
+  transactionPageSchema,
+  userSchema,
+  type Bank,
+  type NetWorth,
+  type SpendingSummary,
+  type TransactionPage,
+  type User,
+} from "./api";
 
 const apiURL = process.env.API_URL ?? "http://localhost:8080";
 
@@ -39,4 +50,32 @@ export async function getBanks(): Promise<Bank[] | null> {
   } catch {
     return null;
   }
+}
+
+export type DashboardData = {
+  netWorth: NetWorth;
+  spending: Record<"all" | "depository" | "credit", SpendingSummary>;
+  recent: TransactionPage;
+};
+
+/** Everything the dashboard shows, fetched at once, or null if any of it couldn't be loaded. */
+export async function getDashboard(): Promise<DashboardData | null> {
+  try {
+    const [netWorth, all, depository, credit, recent] = await Promise.all([
+      getJson("/api/net-worth", netWorthSchema),
+      getJson("/api/spending", spendingSchema),
+      getJson("/api/spending?accountType=depository", spendingSchema),
+      getJson("/api/spending?accountType=credit", spendingSchema),
+      getJson("/api/transactions?size=6", transactionPageSchema),
+    ]);
+    return { netWorth, spending: { all, depository, credit }, recent };
+  } catch {
+    return null;
+  }
+}
+
+async function getJson<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+  const response = await fetchFromBackend(path);
+  if (!response?.ok) throw new Error(`${path} answered ${response?.status ?? "nothing"}`);
+  return schema.parse(await response.json());
 }

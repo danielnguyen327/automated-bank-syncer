@@ -1,6 +1,6 @@
 import { SignInScreen } from "@/components/sign-in-screen";
 import { SignedInHome } from "@/components/signed-in-home";
-import { getBanks, getSession } from "@/lib/session";
+import { getBanks, getDashboard, getSession } from "@/lib/session";
 import { getTheme } from "@/lib/theme";
 
 /** One page: the sign-in screen when signed out, the app when signed in. */
@@ -10,5 +10,6 @@ export default async function Home() {
     return <SignInScreen theme={theme} unavailable={session.status === "unavailable"} />;
   }
   const banks = await getBanks();
-  return <SignedInHome user={session.user} theme={theme} banks={banks} />;
+  const dashboard = banks?.length ? await getDashboard() : null;
+  return <SignedInHome user={session.user} theme={theme} banks={banks} dashboard={dashboard} />;
 }
