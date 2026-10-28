@@ -7,10 +7,12 @@ import {
   describeSyncAll,
   disconnectBank,
   errorMessage,
+  listTransactions,
   messageFor,
   readCookie,
   signIn,
   syncNewBank,
+  transactionsQuery,
 } from "./api";
 
 describe("readCookie", () => {
@@ -211,5 +213,34 @@ describe("describeRun", () => {
     expect(
       describeRun({ ...run, status: "failed", error: "The bank needs you to sign in again." }),
     ).toBe("The bank needs you to sign in again.");
+  });
+});
+
+describe("transactionsQuery", () => {
+  it("leaves out filters that aren't set", () => {
+    expect(transactionsQuery({ accountType: "", category: "", search: "  " }, 0)).toBe(
+      "page=0&size=50",
+    );
+  });
+  it("sends every filter that is set", () => {
+    expect(
+      transactionsQuery({ accountType: "credit", category: "Food & drink", search: " uber " }, 2),
+    ).toBe("accountType=credit&category=Food+%26+drink&search=uber&page=2&size=50");
+  });
+});
+
+describe("listTransactions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for the right page and reads the answer", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ transactions: [], hasMore: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const page = await listTransactions({ accountType: "", category: "", search: "" }, 1);
+
+    expect(page.hasMore).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("/api/transactions?page=1&size=50");
   });
 });

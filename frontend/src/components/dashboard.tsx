@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Transaction } from "@/lib/api";
 import { changeOver30Days, formatDay } from "@/lib/dashboard";
 import { formatCents } from "@/lib/money";
@@ -90,9 +91,14 @@ function MonthlySummary() {
 function RecentTransactions({ transactions }: { transactions: Transaction[] }) {
   return (
     <section aria-labelledby="recent-title" className={card}>
-      <h2 id="recent-title" className="text-[15px] font-semibold">
-        Recent transactions
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="recent-title" className="text-[15px] font-semibold">
+          Recent transactions
+        </h2>
+        <Link href="/transactions" className="text-sm font-medium text-accent hover:underline">
+          See all
+        </Link>
+      </div>
       {transactions.length === 0 ? (
         <p className="py-6 text-center text-sm text-ink-2">
           No transactions yet. They arrive with the first sync.

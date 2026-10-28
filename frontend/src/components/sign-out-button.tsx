@@ -28,7 +28,7 @@ export function SignOutButton() {
       type="button"
       onClick={handleClick}
       disabled={signingOut || refreshing}
-      className="h-11 rounded-lg border border-field-line bg-surface px-4 text-sm font-medium hover:bg-muted disabled:opacity-70"
+      className="h-11 rounded-lg border border-field-line bg-surface px-4 text-sm font-medium whitespace-nowrap hover:bg-muted disabled:opacity-70"
     >
       {failed ? "Retry sign out" : "Sign out"}
     </button>

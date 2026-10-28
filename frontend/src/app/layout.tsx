@@ -15,7 +15,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LedgerSync",
+  title: { default: "LedgerSync", template: "%s · LedgerSync" },
   description: "All your bank accounts and credit cards in one place, synced automatically.",
 };
 

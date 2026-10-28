@@ -173,6 +173,54 @@ export async function signOut(): Promise<void> {
   await send("POST", "/api/auth/logout");
 }
 
+/** Plaid's categories as LedgerSync names them, for filtering transactions. */
+export const CATEGORY_NAMES = [
+  "Bank fees",
+  "Entertainment",
+  "Food & drink",
+  "Government & nonprofits",
+  "Home improvement",
+  "Income",
+  "Loan payments",
+  "Medical",
+  "Personal care",
+  "Rent & utilities",
+  "Services",
+  "Shopping",
+  "Transfers in",
+  "Transfers out",
+  "Transportation",
+  "Travel",
+  "Other",
+];
+
+export type TransactionFilters = {
+  accountType: "" | "depository" | "credit";
+  category: string;
+  search: string;
+};
+
+/** The query string for GET /api/transactions. Filters that aren't set are left out. */
+export function transactionsQuery(filters: TransactionFilters, page: number, size = 50): string {
+  const params = new URLSearchParams();
+  if (filters.accountType) params.set("accountType", filters.accountType);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.search.trim()) params.set("search", filters.search.trim());
+  params.set("page", String(page));
+  params.set("size", String(size));
+  return params.toString();
+}
+
+/** One page of the user's transactions, newest first. */
+export async function listTransactions(
+  filters: TransactionFilters,
+  page: number,
+): Promise<TransactionPage> {
+  const response = await fetch(`/api/transactions?${transactionsQuery(filters, page)}`);
+  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  return transactionPageSchema.parse(await response.json());
+}
+
 const linkTokenSchema = z.object({ linkToken: z.string() });
 
 /** A one-time token that opens Plaid's bank sign-in window. */

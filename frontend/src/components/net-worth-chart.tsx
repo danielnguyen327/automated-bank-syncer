@@ -8,6 +8,7 @@ import { formatCents } from "@/lib/money";
 const HEIGHT = 180;
 const TOP = 18;
 const BOTTOM = 26;
+const LEFT = 56; // room for the dollar labels, so they never sit on the line
 const RIGHT = 8;
 
 const compact = new Intl.NumberFormat("en-US", {
@@ -40,7 +41,7 @@ export function NetWorthChart({ netWorth }: { netWorth: NetWorth }) {
   const ticks = chartTicks(Math.min(...values), Math.max(...values));
   const low = ticks[0] ?? 0;
   const high = ticks.at(-1) ?? low;
-  const x = (i: number) => (i / (points.length - 1)) * (width - RIGHT);
+  const x = (i: number) => LEFT + (i / (points.length - 1)) * (width - LEFT - RIGHT);
   const y = (cents: number) =>
     TOP + (1 - (cents - low) / (high - low || 1)) * (HEIGHT - TOP - BOTTOM);
   const path = (from: number, to: number) =>
@@ -57,11 +58,11 @@ export function NetWorthChart({ netWorth }: { netWorth: NetWorth }) {
   const shown = hovered ?? last;
   const monthStarts = points
     .map((p, i) => ({ p, i }))
-    .filter(({ p, i }) => p.date.endsWith("-01") && x(i) > 24 && x(i) < width - 24);
+    .filter(({ p, i }) => p.date.endsWith("-01") && x(i) > LEFT + 16 && x(i) < width - 24);
 
   function hover(clientX: number) {
     const left = box.current?.getBoundingClientRect().left ?? 0;
-    const i = Math.round(((clientX - left) / (width - RIGHT)) * last);
+    const i = Math.round(((clientX - left - LEFT) / (width - LEFT - RIGHT)) * last);
     setHovered(Math.min(last, Math.max(0, i)));
   }
 
@@ -83,8 +84,19 @@ export function NetWorthChart({ netWorth }: { netWorth: NetWorth }) {
         >
           {ticks.map((tick) => (
             <g key={tick}>
-              <line x1={0} x2={width - RIGHT} y1={y(tick)} y2={y(tick)} className="stroke-line" />
-              <text x={0} y={y(tick) - 5} className="fill-ink-3 font-mono text-[11px]">
+              <line
+                x1={LEFT}
+                x2={width - RIGHT}
+                y1={y(tick)}
+                y2={y(tick)}
+                className="stroke-line"
+              />
+              <text
+                x={LEFT - 8}
+                y={y(tick) + 4}
+                textAnchor="end"
+                className="fill-ink-3 font-mono text-[11px]"
+              >
                 {compact.format(tick / 100)}
               </text>
             </g>

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import { z } from "zod";
 import {
@@ -41,6 +42,13 @@ export const getSession = cache(async (): Promise<Session> => {
   }
 });
 
+/** The signed-in user. Anyone else is sent to the sign-in screen. */
+export async function requireUser(): Promise<User> {
+  const session = await getSession();
+  if (session.status !== "signed-in") redirect("/");
+  return session.user;
+}
+
 /** The signed-in user's connected banks, or null if they couldn't be loaded. */
 export async function getBanks(): Promise<Bank[] | null> {
   try {
@@ -78,4 +86,13 @@ async function getJson<T>(path: string, schema: z.ZodType<T>): Promise<T> {
   const response = await fetchFromBackend(path);
   if (!response?.ok) throw new Error(`${path} answered ${response?.status ?? "nothing"}`);
   return schema.parse(await response.json());
+}
+
+/** The first page of the transactions list, or null if it couldn't be loaded. */
+export async function getTransactions(): Promise<TransactionPage | null> {
+  try {
+    return await getJson("/api/transactions?size=50", transactionPageSchema);
+  } catch {
+    return null;
+  }
 }
