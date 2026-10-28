@@ -37,7 +37,7 @@ export function AppShell({
         <div className="flex items-center justify-between gap-3 lg:px-2">
           <Brand />
           <div className="flex items-center gap-2 lg:hidden">
-            <ThemeToggle initialTheme={theme} />
+            <ThemeToggle key={theme} initialTheme={theme} />
             <SignOutButton />
           </div>
         </div>
@@ -63,7 +63,7 @@ export function AppShell({
             <span className="truncate text-xs text-ink-3">{user.email}</span>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle initialTheme={theme} />
+            <ThemeToggle key={theme} initialTheme={theme} />
             <SignOutButton />
           </div>
         </div>

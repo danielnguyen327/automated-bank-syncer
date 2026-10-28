@@ -1,6 +1,7 @@
 import { AppShell, LoadError, PageTitle } from "@/components/app-shell";
 import { Dashboard } from "@/components/dashboard";
 import { AfterFirstSync, FirstVisit } from "@/components/first-visit";
+import { ReconnectBanner } from "@/components/reconnect-banner";
 import { SignInScreen } from "@/components/sign-in-screen";
 import { getBanks, getDashboard, getSession } from "@/lib/session";
 import { getTheme } from "@/lib/theme";
@@ -26,7 +27,10 @@ export default async function Home() {
           <AfterFirstSync />
         </>
       ) : dashboard ? (
-        <Dashboard data={dashboard} />
+        <>
+          <ReconnectBanner banks={banks} />
+          <Dashboard data={dashboard} />
+        </>
       ) : (
         <LoadError what="dashboard" />
       )}

@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   createLinkToken,
+  createReconnectLinkToken,
   describeRun,
   describeSync,
   describeSyncAll,
   disconnectBank,
   errorMessage,
+  expireSandboxSignIn,
   listTransactions,
   messageFor,
   readCookie,
@@ -242,5 +244,38 @@ describe("listTransactions", () => {
 
     expect(page.hasMore).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith("/api/transactions?page=1&size=50");
+  });
+});
+
+describe("reconnecting", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for a link token for that bank", async () => {
+    vi.stubGlobal("document", { cookie: "XSRF-TOKEN=abc-123" });
+    const fetchMock = vi.fn(async () => Response.json({ linkToken: "link-sandbox-update-1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await createReconnectLinkToken("bank-1")).toBe("link-sandbox-update-1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/banks/bank-1/link-token",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+  it("expires a Sandbox bank's sign-in with a POST that carries the CSRF token", async () => {
+    vi.stubGlobal("document", { cookie: "XSRF-TOKEN=abc-123" });
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expireSandboxSignIn("bank-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sandbox/banks/bank-1/expire-sign-in",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-XSRF-TOKEN": "abc-123" }),
+      }),
+    );
   });
 });

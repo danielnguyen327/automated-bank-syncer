@@ -229,6 +229,17 @@ export async function createLinkToken(): Promise<string> {
   return linkTokenSchema.parse(await response.json()).linkToken;
 }
 
+/** A one-time token that reopens Plaid's window for a bank that needs you to sign in again. */
+export async function createReconnectLinkToken(bankId: string): Promise<string> {
+  const response = await send("POST", `/api/banks/${bankId}/link-token`);
+  return linkTokenSchema.parse(await response.json()).linkToken;
+}
+
+/** Sandbox only: makes one of your banks need a new sign-in, so you can try reconnecting. */
+export async function expireSandboxSignIn(bankId: string): Promise<void> {
+  await send("POST", `/api/sandbox/banks/${bankId}/expire-sign-in`);
+}
+
 /** Hands the backend the public token Plaid gave the browser. Only the backend sees the real access token. */
 export async function connectBank(publicToken: string): Promise<Bank> {
   const response = await send("POST", "/api/banks", { publicToken });

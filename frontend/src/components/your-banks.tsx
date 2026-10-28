@@ -1,14 +1,18 @@
 import { describeRun, type Account, type Bank, type SyncRun } from "@/lib/api";
 import { formatCents } from "@/lib/money";
+import { usesSandbox } from "@/lib/plaid";
 import { timeAgo } from "@/lib/time";
 import { DisconnectBankButton } from "./disconnect-bank-button";
+import { ExpireSignInButton } from "./expire-sign-in-button";
 import { BankIcon, CardIcon } from "./icons";
+import { ReconnectButton } from "./reconnect-button";
 import { SyncAllButton } from "./sync-all-button";
 import { SyncBankButton } from "./sync-bank-button";
 
 /** Every connected bank and its accounts, with the balances from the last sync. */
 export function YourBanks({ banks }: { banks: Bank[] }) {
   const now = new Date();
+  const sandbox = usesSandbox();
 
   return (
     <section aria-labelledby="banks-title" className="flex flex-col gap-3">
@@ -38,15 +42,18 @@ export function YourBanks({ banks }: { banks: Bank[] }) {
                 </div>
               </div>
               <div className="flex items-start gap-1">
-                <SyncBankButton bankId={bank.id} />
+                {needsSignIn(bank) ? (
+                  <ReconnectButton bankId={bank.id} />
+                ) : (
+                  <SyncBankButton bankId={bank.id} />
+                )}
                 <DisconnectBankButton bankId={bank.id} bankName={bank.institutionName} />
               </div>
             </div>
             {needsSignIn(bank) && (
               <p className="border-b border-warn-line bg-warn px-5 py-3 text-sm text-warn-ink">
-                {bank.institutionName} ended the connection, which banks do from time to time. Until
-                you sign in again, its balances and transactions won’t update. To fix it now,
-                disconnect the bank and connect it again.
+                {bank.institutionName} ended the connection, which banks do from time to time. Use
+                Reconnect to sign in again. Until then, its balances and transactions won’t update.
               </p>
             )}
             <ul className="divide-y divide-line">
@@ -54,6 +61,11 @@ export function YourBanks({ banks }: { banks: Bank[] }) {
                 <AccountRow key={account.id} account={account} />
               ))}
             </ul>
+            {sandbox && !needsSignIn(bank) && (
+              <div className="border-t border-line px-5 py-2.5">
+                <ExpireSignInButton bankId={bank.id} />
+              </div>
+            )}
             {bank.recentSyncs.length > 0 && <RecentSyncs runs={bank.recentSyncs} now={now} />}
           </li>
         ))}

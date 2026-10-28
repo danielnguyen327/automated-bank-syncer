@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
-import { getTheme } from "@/lib/theme";
+import { getAccent, getTheme } from "@/lib/theme";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
@@ -20,11 +20,12 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const theme = await getTheme();
+  const [theme, accent] = await Promise.all([getTheme(), getAccent()]);
   return (
     <html
       lang="en"
-      data-theme={theme}
+      data-theme={theme === "system" ? undefined : theme}
+      data-accent={accent}
       className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full font-sans">{children}</body>

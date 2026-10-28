@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Direction A. Light is the default; <html data-theme="dark"> switches to dark. */
+/* Direction A. Light is the default; <html data-theme="dark"> switches to dark, and no data-theme
+   follows the device ("System"). */
 :root {
   --page: #f3f5f8;
   --surface: #ffffff;
@@ -47,26 +48,58 @@
   color-scheme: dark;
 }
 
+/* "System" leaves out data-theme, so the device decides. On a dark device, the same colors as dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --page: #0b1017;
+    --surface: #121923;
+    --line: #243040;
+    --field: #0b1017;
+    --field-line: #2e3a4a;
+    --ink: #e6ecf3;
+    --ink-2: #aab6c5;
+    --ink-3: #8593a6;
+    --muted: #19222e;
+    --muted-ink: #c5cfdb;
+    --sandbox: #3a2e12;
+    --sandbox-ink: #f5c35b;
+    --warn: #2b2111;
+    --warn-line: #5c4415;
+    --warn-ink: #fec84b;
+    --good: #75e0a7;
+    --danger: #fda29b;
+    --accent: var(--accent-dark);
+    --on-accent: #0b1017;
+    color-scheme: dark;
+  }
+}
+
 /* Accent colors, each with a deeper shade for light and a brighter one for dark.
-   Cobalt is the default; <html data-accent="teal"> picks another. */
+   Cobalt is the default; <html data-accent="teal"> picks another. data-swatch shows one color's
+   two shades in the accent picker. */
 :root,
-:root[data-accent="cobalt"] {
+:root[data-accent="cobalt"],
+[data-swatch="cobalt"] {
   --accent-light: #2851c7;
   --accent-dark: #7aa2ff;
 }
-:root[data-accent="teal"] {
+:root[data-accent="teal"],
+[data-swatch="teal"] {
   --accent-light: #0f766e;
   --accent-dark: #34c3b0;
 }
-:root[data-accent="violet"] {
+:root[data-accent="violet"],
+[data-swatch="violet"] {
   --accent-light: #6d28d9;
   --accent-dark: #b09bff;
 }
-:root[data-accent="rose"] {
+:root[data-accent="rose"],
+[data-swatch="rose"] {
   --accent-light: #be185d;
   --accent-dark: #f47fb0;
 }
-:root[data-accent="graphite"] {
+:root[data-accent="graphite"],
+[data-swatch="graphite"] {
   --accent-light: #344054;
   --accent-dark: #c5cfdb;
 }
