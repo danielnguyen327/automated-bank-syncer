@@ -4,6 +4,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+RUN mkdir -p public
 ARG API_URL
 RUN npm run build
 
