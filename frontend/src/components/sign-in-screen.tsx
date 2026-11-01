@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Theme } from "@/lib/theme";
 import { AuthForm } from "./auth-form";
 import { Brand } from "./brand";
@@ -96,7 +97,10 @@ export function SignInScreen({ theme, unavailable }: { theme: Theme; unavailable
           <p className="flex w-full max-w-[420px] items-start gap-2 text-[13px] text-ink-3">
             <LockIcon className="mt-0.5 size-4 shrink-0" />
             <span>
-              Bank logins happen in Plaid’s window. LedgerSync never sees your bank password.
+              Bank logins happen in Plaid’s window. LedgerSync never sees your bank password.{" "}
+              <Link href="/privacy" className="font-medium text-accent hover:underline">
+                How LedgerSync handles your data
+              </Link>
             </span>
           </p>
         </main>

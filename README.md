@@ -1,4 +1,9 @@
-# LedgerSync
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/ledgersync-logo-dark.svg">
+    <img src="docs/ledgersync-logo.svg" alt="LedgerSync" height="48">
+  </picture>
+</h1>
 
 Links bank accounts and credit cards through Plaid, keeps transactions in sync on a schedule,
 and uses Claude to categorize spending and explain what changed.

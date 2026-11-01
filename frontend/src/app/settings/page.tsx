@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AppShell, PageTitle } from "@/components/app-shell";
 import { AppearanceSettings } from "@/components/appearance-settings";
 import { DeleteAccount } from "@/components/delete-account";
@@ -30,6 +31,13 @@ export default async function SettingsPage() {
           <dt className="text-ink-3">Sign-in</dt>
           <dd>Email and password</dd>
         </dl>
+        <p className="border-t border-line pt-4 text-sm text-ink-3">
+          See what LedgerSync stores and how to delete it in the{" "}
+          <Link href="/privacy" className="font-medium text-accent hover:underline">
+            privacy policy
+          </Link>
+          .
+        </p>
       </section>
       <div className="max-w-2xl">
         <DeleteAccount />
