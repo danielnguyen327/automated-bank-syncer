@@ -155,8 +155,8 @@ class PlaidApiGateway implements PlaidGateway {
     private <T> T call(Call<T> request) {
         if (!configured) {
             throw new PlaidException("NOT_CONFIGURED",
-                "Plaid isn't set up yet. Add PLAID_CLIENT_ID and PLAID_SECRET to backend/.env.",
-                "Missing Plaid keys");
+                "Bank connections aren't available right now. Try again later.",
+                "PLAID_CLIENT_ID or PLAID_SECRET isn't set");
         }
         try {
             Response<T> response = request.execute();
