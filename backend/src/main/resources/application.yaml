@@ -8,6 +8,10 @@ spring:
     hibernate:
       ddl-auto: validate
 
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+
 management:
   endpoints:
     web:
